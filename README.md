@@ -139,6 +139,8 @@ public class MyServiceImpl implements MyService {
 
 * Configure max log size of you soap-client `play.soap.services.<SERVICE_CLASS>.log-size` (Default value 48 kB). When you use log-size more than 128 kbytes CXF creates temporary files that contains messages, and CXF deletes files by itself.
 
+* Configure logging shadowing properties with `play.soap.services.<SERVICE_CLASS>.fields-shadowing`. This settings are used when `play.soap.services.<SERVICE_CLASS>.debugLog=true` (Logging interceptors are enabled). Custom LoggingInterceptors embed necessary string in a soap request and response when it finds a message with a desired soapAction message. 
+
 ```HOCON
 lagom.circuit-breaker {
   default.exception-whitelist = [
@@ -157,6 +159,19 @@ play.soap.services {
     browser-type = "Lagom MyService"
     singleton: false
     log-size : 1MB
+    fields-shadowing : [
+      {
+        soap-method = "\"soapAction\""
+        replacing-symbols = "********"
+        request-patterns = [
+          "//books/title",
+        ]
+        response-patterns = [
+          "//books/book/date",
+          "//books/book/author/name"
+        ]
+      }
+    ]
     breaker = {
       call-timeout = 10s
     }
