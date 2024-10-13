@@ -9,6 +9,10 @@ import javassist.util.proxy.ProxyFactory
 import mu.KotlinLogging
 import org.apache.cxf.interceptor.AbstractLoggingInterceptor
 import org.apache.cxf.transport.http.HTTPConduit
+import org.taymyr.lagom.soap.interceptor.PostShadowingLoggingInInterceptor
+import org.taymyr.lagom.soap.interceptor.PreShadowingLoggingInInterceptor
+import org.taymyr.lagom.soap.interceptor.ShadowingLoggingOutInterceptor
+import org.taymyr.lagom.soap.interceptor.ShadowingSettings
 import play.soap.PlayJaxWsClientProxy
 import play.soap.PlaySoapClient
 import java.lang.String.format
@@ -88,6 +92,7 @@ constructor(
         private val port: P
         private val isSingleton: Boolean
         private val logSize: Int?
+        private val fieldsShadowing: List<ShadowingSettings>
 
         init {
             val globalConfig = configProvider.get()
@@ -101,6 +106,9 @@ constructor(
             this.invokeHandlers = this@ServiceProviderImpl.invokeHandlers.plus(invokeMethodHandlers)
             this.isSingleton = if (config.hasPath("singleton")) config.getBoolean("singleton") else false
             this.logSize = if (config.hasPath("log-size")) config.getBytes("log-size").toInt() else null
+            this.fieldsShadowing = if (config.hasPath("fields-shadowing"))
+                config.extract<List<ShadowingSettings>>("fields-shadowing")
+            else emptyList()
             this.port = if (isSingleton) createPort() else Unit as P
         }
 
@@ -172,6 +180,15 @@ constructor(
             if (logSize != null) {
                 proxy.client.inInterceptors.filterIsInstance<AbstractLoggingInterceptor>().forEach { it.limit = logSize }
                 proxy.client.outInterceptors.filterIsInstance<AbstractLoggingInterceptor>().forEach { it.limit = logSize }
+            }
+            if (config.hasPath("debugLog") && fieldsShadowing.isNotEmpty()) {
+//                proxy.client.outInterceptors += LoggingShadowingOutInterceptor(shadowingSettings = fieldsShadowing)
+//                proxy.client.outInterceptors += PreOutLoggingMessageInterceptor(fieldsShadowing)
+                proxy.client.outInterceptors += ShadowingLoggingOutInterceptor(fieldsShadowing, logSize)
+                proxy.client.inInterceptors += listOf(
+                    PreShadowingLoggingInInterceptor(fieldsShadowing),
+                    PostShadowingLoggingInInterceptor(fieldsShadowing, logSize)
+                )
             }
             httpClientPolicy.browserType = config.extract("browser-type") ?: "lagom"
             afterInit(port)
